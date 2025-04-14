@@ -1,4 +1,4 @@
-name: pbrlcomp
+name: pbrl
 channels:
   - anaconda
   - menpo
@@ -190,7 +190,7 @@ dependencies:
       - google-auth-oauthlib==1.2.0
       - gpustat==1.1.1
       - grpcio==1.60.0
-      - gym==0.21.0
+      - gym==0.23.0
       - gymnasium==0.29.1
       - hydra-core==0.11.3
       - importlib-resources==6.1.1
@@ -199,7 +199,7 @@ dependencies:
       - lxml==5.1.0
       - markdown==3.5.2
       - matplotlib==3.8.2
-      - metaworld==2.0.0
+      - git+https://github.com/Farama-Foundation/Metaworld.git@documentation#egg=metaworld
       - mujoco==2.3.7
       - nvidia-ml-py==12.535.133
       - oauthlib==3.2.2
@@ -228,4 +228,4 @@ dependencies:
       - wandb==0.16.6
       - wcwidth==0.2.13
       - werkzeug==3.0.1
-prefix: /root/autodl-tmp/conda/envs/pbrlcomp
+# prefix: /root/autodl-tmp/conda/envs/pbrlcomp
