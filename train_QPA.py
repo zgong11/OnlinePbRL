@@ -145,20 +145,7 @@ class Workspace(object):
             # if it is first time to get feedback, need to use random sampling
             labeled_queries = self.reward_model.uniform_sampling()
         else:
-            if self.cfg.feed_type == 0:
-                labeled_queries = self.reward_model.uniform_sampling()
-            elif self.cfg.feed_type == 1:
-                labeled_queries = self.reward_model.disagreement_sampling()
-            elif self.cfg.feed_type == 2:
-                labeled_queries = self.reward_model.entropy_sampling()
-            elif self.cfg.feed_type == 3:
-                labeled_queries = self.reward_model.kcenter_sampling()
-            elif self.cfg.feed_type == 4:
-                labeled_queries = self.reward_model.kcenter_disagree_sampling()
-            elif self.cfg.feed_type == 5:
-                labeled_queries = self.reward_model.kcenter_entropy_sampling()
-            else:
-                raise NotImplementedError
+            labeled_queries = self.reward_model.uniform_sampling(self.cfg.explore)
 
         self.total_feedback += self.reward_model.mb_size
         self.labeled_feedback += labeled_queries

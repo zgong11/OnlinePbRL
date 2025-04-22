@@ -375,6 +375,44 @@ class RewardModel:
 
         return sa_t_1, sa_t_2, r_t_1, r_t_2
 
+    def get_queries_part(self, mb_size=20, part=10):
+        len_traj, max_len = len(self.inputs[0]), part
+        img_t_1, img_t_2 = None, None
+
+        if len(self.inputs[-1]) < len_traj:
+            train_inputs = np.array(self.inputs[-part-1:-1])
+            train_targets = np.array(self.targets[-part-1:-1])
+        else:
+            train_inputs = np.array(self.inputs[-part:])
+            train_targets = np.array(self.targets[-part:])
+
+        batch_index_2 = np.random.choice(max_len, size=mb_size, replace=True)
+        sa_t_2 = train_inputs[batch_index_2]  # Batch x T x dim of s&a
+        r_t_2 = train_targets[batch_index_2]  # Batch x T x 1
+
+        batch_index_1 = np.random.choice(max_len, size=mb_size, replace=True)
+        sa_t_1 = train_inputs[batch_index_1]  # Batch x T x dim of s&a
+        r_t_1 = train_targets[batch_index_1]  # Batch x T x 1
+
+        sa_t_1 = sa_t_1.reshape(-1, sa_t_1.shape[-1])  # (Batch x T) x dim of s&a
+        r_t_1 = r_t_1.reshape(-1, r_t_1.shape[-1])  # (Batch x T) x 1
+        sa_t_2 = sa_t_2.reshape(-1, sa_t_2.shape[-1])  # (Batch x T) x dim of s&a
+        r_t_2 = r_t_2.reshape(-1, r_t_2.shape[-1])  # (Batch x T) x 1
+
+        # Generate time index
+        time_index = np.array([list(range(i * len_traj, i * len_traj + self.size_segment)) for i in range(mb_size)])
+        time_index_2 = time_index + np.random.choice(len_traj - self.size_segment, size=mb_size, replace=True).reshape(
+            -1, 1)
+        time_index_1 = time_index + np.random.choice(len_traj - self.size_segment, size=mb_size, replace=True).reshape(
+            -1, 1)
+
+        sa_t_1 = np.take(sa_t_1, time_index_1, axis=0)  # Batch x size_seg x dim of s&a
+        r_t_1 = np.take(r_t_1, time_index_1, axis=0)  # Batch x size_seg x 1
+        sa_t_2 = np.take(sa_t_2, time_index_2, axis=0)  # Batch x size_seg x dim of s&a
+        r_t_2 = np.take(r_t_2, time_index_2, axis=0)  # Batch x size_seg x 1
+
+        return sa_t_1, sa_t_2, r_t_1, r_t_2
+
     def put_queries(self, sa_t_1, sa_t_2, labels):
         total_sample = sa_t_1.shape[0]
         next_index = self.buffer_index + total_sample
@@ -449,153 +487,17 @@ class RewardModel:
 
         return sa_t_1, sa_t_2, r_t_1, r_t_2, labels
 
-    def kcenter_sampling(self):
+    def uniform_sampling(self, explore=False):
         # get queries
-        num_init = self.mb_size * self.large_batch
-        sa_t_1, sa_t_2, r_t_1, r_t_2 = self.get_queries(mb_size=num_init)
-
-        # get final queries based on kmeans clustering
-        temp_sa_t_1 = sa_t_1[:, :, :self.ds]
-        temp_sa_t_2 = sa_t_2[:, :, :self.ds]
-        temp_sa = np.concatenate([temp_sa_t_1.reshape(num_init, -1), temp_sa_t_2.reshape(num_init, -1)], axis=1)
-
-        max_len = self.capacity if self.buffer_full else self.buffer_index
-
-        tot_sa_1 = self.buffer_seg1[:max_len, :, :self.ds]
-        tot_sa_2 = self.buffer_seg2[:max_len, :, :self.ds]
-        tot_sa = np.concatenate([tot_sa_1.reshape(max_len, -1), tot_sa_2.reshape(max_len, -1)], axis=1)
-
-        selected_index = KCenterGreedy(temp_sa, tot_sa, self.mb_size)
-
-        r_t_1, sa_t_1 = r_t_1[selected_index], sa_t_1[selected_index]
-        r_t_2, sa_t_2 = r_t_2[selected_index], sa_t_2[selected_index]
-
-        # get labels
-        sa_t_1, sa_t_2, r_t_1, r_t_2, labels = self.get_label(sa_t_1, sa_t_2, r_t_1, r_t_2)
-
-        if len(labels) > 0:
-            self.put_queries(sa_t_1, sa_t_2, labels)
-
-        return len(labels)
-
-    def kcenter_disagree_sampling(self):
-        num_init = self.mb_size * self.large_batch
-        num_init_half = int(num_init * 0.5)
-
-        # get queries
-        sa_t_1, sa_t_2, r_t_1, r_t_2 = self.get_queries(mb_size=num_init)
-
-        # get final queries based on uncertainty
-        _, disagree = self.get_rank_probability(sa_t_1, sa_t_2)
-        top_k_index = (-disagree).argsort()[:num_init_half]
-        r_t_1, sa_t_1 = r_t_1[top_k_index], sa_t_1[top_k_index]
-        r_t_2, sa_t_2 = r_t_2[top_k_index], sa_t_2[top_k_index]
-
-        # get final queries based on kmeans clustering
-        temp_sa_t_1 = sa_t_1[:, :, :self.ds]
-        temp_sa_t_2 = sa_t_2[:, :, :self.ds]
-
-        temp_sa = np.concatenate([temp_sa_t_1.reshape(num_init_half, -1), temp_sa_t_2.reshape(num_init_half, -1)],
-                                 axis=1)
-
-        max_len = self.capacity if self.buffer_full else self.buffer_index
-
-        tot_sa_1 = self.buffer_seg1[:max_len, :, :self.ds]
-        tot_sa_2 = self.buffer_seg2[:max_len, :, :self.ds]
-        tot_sa = np.concatenate([tot_sa_1.reshape(max_len, -1), tot_sa_2.reshape(max_len, -1)], axis=1)
-
-        selected_index = KCenterGreedy(temp_sa, tot_sa, self.mb_size)
-
-        r_t_1, sa_t_1 = r_t_1[selected_index], sa_t_1[selected_index]
-        r_t_2, sa_t_2 = r_t_2[selected_index], sa_t_2[selected_index]
-
-        # get labels
-        sa_t_1, sa_t_2, r_t_1, r_t_2, labels = self.get_label(sa_t_1, sa_t_2, r_t_1, r_t_2)
-
-        if len(labels) > 0:
-            self.put_queries(sa_t_1, sa_t_2, labels)
-
-        return len(labels)
-
-    def kcenter_entropy_sampling(self):
-        num_init = self.mb_size * self.large_batch
-        num_init_half = int(num_init * 0.5)
-
-        # get queries
-        sa_t_1, sa_t_2, r_t_1, r_t_2 = self.get_queries(mb_size=num_init)
-
-        # get final queries based on uncertainty
-        entropy, _ = self.get_entropy(sa_t_1, sa_t_2)
-        top_k_index = (-entropy).argsort()[:num_init_half]
-        r_t_1, sa_t_1 = r_t_1[top_k_index], sa_t_1[top_k_index]
-        r_t_2, sa_t_2 = r_t_2[top_k_index], sa_t_2[top_k_index]
-
-        # get final queries based on kmeans clustering
-        temp_sa_t_1 = sa_t_1[:, :, :self.ds]
-        temp_sa_t_2 = sa_t_2[:, :, :self.ds]
-
-        temp_sa = np.concatenate([temp_sa_t_1.reshape(num_init_half, -1), temp_sa_t_2.reshape(num_init_half, -1)],
-                                 axis=1)
-
-        max_len = self.capacity if self.buffer_full else self.buffer_index
-
-        tot_sa_1 = self.buffer_seg1[:max_len, :, :self.ds]
-        tot_sa_2 = self.buffer_seg2[:max_len, :, :self.ds]
-        tot_sa = np.concatenate([tot_sa_1.reshape(max_len, -1), tot_sa_2.reshape(max_len, -1)], axis=1)
-
-        selected_index = KCenterGreedy(temp_sa, tot_sa, self.mb_size)
-
-        r_t_1, sa_t_1 = r_t_1[selected_index], sa_t_1[selected_index]
-        r_t_2, sa_t_2 = r_t_2[selected_index], sa_t_2[selected_index]
-
-        # get labels
-        sa_t_1, sa_t_2, r_t_1, r_t_2, labels = self.get_label(sa_t_1, sa_t_2, r_t_1, r_t_2)
-
-        if len(labels) > 0:
-            self.put_queries(sa_t_1, sa_t_2, labels)
-
-        return len(labels)
-
-    def uniform_sampling(self):
-        # get queries
-        sa_t_1, sa_t_2, r_t_1, r_t_2 = self.get_queries(mb_size=self.mb_size)
-
-        # get labels
-        sa_t_1, sa_t_2, r_t_1, r_t_2, labels = self.get_label(sa_t_1, sa_t_2, r_t_1, r_t_2)
-
-        if len(labels) > 0:
-            self.put_queries(sa_t_1, sa_t_2, labels)
-
-        return len(labels)
-
-    def disagreement_sampling(self):
-        # get queries
-        sa_t_1, sa_t_2, r_t_1, r_t_2 = self.get_queries(mb_size=self.mb_size * self.large_batch)
-
-        # get final queries based on uncertainty
-        _, disagree = self.get_rank_probability(sa_t_1, sa_t_2)
-        top_k_index = (-disagree).argsort()[:self.mb_size]
-        r_t_1, sa_t_1 = r_t_1[top_k_index], sa_t_1[top_k_index]
-        r_t_2, sa_t_2 = r_t_2[top_k_index], sa_t_2[top_k_index]
-
-        # get labels
-        sa_t_1, sa_t_2, r_t_1, r_t_2, labels = self.get_label(sa_t_1, sa_t_2, r_t_1, r_t_2)
-
-        if len(labels) > 0:
-            self.put_queries(sa_t_1, sa_t_2, labels)
-
-        return len(labels)
-
-    def entropy_sampling(self):
-        # get queries
-        sa_t_1, sa_t_2, r_t_1, r_t_2 = self.get_queries(mb_size=self.mb_size * self.large_batch)
-
-        # get final queries based on uncertainty
-        entropy, _ = self.get_entropy(sa_t_1, sa_t_2)
-
-        top_k_index = (-entropy).argsort()[:self.mb_size]
-        r_t_1, sa_t_1 = r_t_1[top_k_index], sa_t_1[top_k_index]
-        r_t_2, sa_t_2 = r_t_2[top_k_index], sa_t_2[top_k_index]
+        if not explore:
+            sa_t_1, sa_t_2, r_t_1, r_t_2 = self.get_queries(mb_size=self.mb_size)
+        else:
+            sa_t_1, sa_t_2, r_t_1, r_t_2 = self.get_queries(mb_size=int(self.mb_size*explore))
+            sa_t_1_, sa_t_2_, r_t_1_, r_t_2_ = self.get_queries(mb_size=int(self.mb_size*(1-explore)))
+            sa_t_1 = np.concatenate([sa_t_1, sa_t_1_], axis=0)
+            sa_t_2 = np.concatenate([sa_t_2, sa_t_2_], axis=0)
+            r_t_1 = np.concatenate([r_t_1, r_t_1_], axis=0)
+            r_t_2 = np.concatenate([r_t_2, r_t_2_], axis=0)
 
         # get labels
         sa_t_1, sa_t_2, r_t_1, r_t_2, labels = self.get_label(sa_t_1, sa_t_2, r_t_1, r_t_2)
