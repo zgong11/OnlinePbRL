@@ -63,10 +63,6 @@ def get_mean_std(algo_dirs, meta=False, smooth=False):
 
 def plot_via_path(algos, exp_dir, alpha_value, smooth=False):
 
-    figures_path = Path('figures')
-    if not figures_path.exists():
-        figures_path.mkdir(parents=True)
-
     for task_dir in exp_dir.iterdir():
         task_str = task_dir.name
         if task_str.startswith('metaworld_'):
@@ -94,16 +90,16 @@ def plot_via_path(algos, exp_dir, alpha_value, smooth=False):
                                 alpha=alpha_value, color=algo_color[algo])
 
         plt.xlabel('Number of Timesteps')
-        plt.legend()
+        plt.legend(loc='best')
         if meta:
             plt.ylim([0, 100])
             plt.ylabel('Success Rate %')
             plt.title("MetaWorld - " + task)
-            plt.savefig('figures/metaworld_' + task.lower() + '_results_sr.png', bbox_inches='tight')
+            plt.savefig('figures2/metaworld_' + task.lower() + '_results_sr.png', bbox_inches='tight')
         else:
             plt.ylabel('Rewards')
             plt.title("DM Control - " + task)
-            plt.savefig('figures/' + task.lower() + '_results.png', bbox_inches='tight')
+            plt.savefig('figures2/' + task.lower() + '_results.png', bbox_inches='tight')
 
 
 
@@ -119,7 +115,7 @@ algo_color = {
 algos = algo_color.keys()
 exp_dir = Path('./exp')
 
-figures_path = Path('figures')
+figures_path = Path('figures2')
 figures_path.mkdir(parents=True, exist_ok=True)
 
 plot_via_path(algos, exp_dir, alpha_value, smooth=False)
