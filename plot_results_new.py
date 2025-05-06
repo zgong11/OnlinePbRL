@@ -61,7 +61,7 @@ def get_mean_std(algo_dirs, meta=False, smooth=False):
             return timesteps, rewards_mean, rewards_std
 
 
-def plot_via_path(algos, exp_dir, alpha_value, smooth=False):
+def plot_via_path(algos, exp_dir, alpha_value, line_width, smooth=False):
 
     for task_dir in exp_dir.iterdir():
         task_str = task_dir.name
@@ -81,11 +81,11 @@ def plot_via_path(algos, exp_dir, alpha_value, smooth=False):
             plot_results = get_mean_std(algo_dirs, meta=meta, smooth=smooth)
 
             if meta:
-                plt.plot(plot_results[0], plot_results[3], color=algo_color[algo], label=algo.upper())
+                plt.plot(plot_results[0], plot_results[3], color=algo_color[algo], label=algo.upper(), linewidth=line_width)
                 plt.fill_between(plot_results[0], plot_results[3] - plot_results[4], plot_results[3] + plot_results[4],
                                 alpha=alpha_value, color=algo_color[algo])
             else:
-                plt.plot(plot_results[0], plot_results[1], color=algo_color[algo], label=algo.upper())
+                plt.plot(plot_results[0], plot_results[1], color=algo_color[algo], label=algo.upper(), linewidth=line_width)
                 plt.fill_between(plot_results[0], plot_results[1] - plot_results[2], plot_results[1] + plot_results[2],
                                 alpha=alpha_value, color=algo_color[algo])
 
@@ -95,15 +95,16 @@ def plot_via_path(algos, exp_dir, alpha_value, smooth=False):
             plt.ylim([0, 100])
             plt.ylabel('Success Rate %')
             plt.title("MetaWorld - " + task)
-            plt.savefig('figures2/metaworld_' + task.lower() + '_results_sr.png', bbox_inches='tight')
+            plt.savefig('figures/metaworld_' + task.lower() + '_results_sr.png', bbox_inches='tight')
         else:
             plt.ylabel('Rewards')
             plt.title("DM Control - " + task)
-            plt.savefig('figures2/' + task.lower() + '_results.png', bbox_inches='tight')
+            plt.savefig('figures/' + task.lower() + '_results.png', bbox_inches='tight')
 
 
 
 alpha_value = 0.07
+line_width = 2
 
 algo_color = {
     'sac': 'blue', 
@@ -115,7 +116,7 @@ algo_color = {
 algos = algo_color.keys()
 exp_dir = Path('./exp')
 
-figures_path = Path('figures2')
+figures_path = Path('figures')
 figures_path.mkdir(parents=True, exist_ok=True)
 
-plot_via_path(algos, exp_dir, alpha_value, smooth=False)
+plot_via_path(algos, exp_dir, alpha_value, line_width, smooth=False)
