@@ -153,11 +153,26 @@ class RewardModelHuman(RewardModel):
 
 
     def get_human_label(self, f_cat):
+
+        scale_factor = 3.0  # Double the size, adjust as needed
+
         for idx, f_cat_ins in enumerate(f_cat):
             os.makedirs(f'{self.video_record_path}/session{self.session:03d}', exist_ok=True)
             writer = imageio.get_writer(f'{self.video_record_path}/session{self.session:03d}/video{idx:03d}.mp4', fps=15)
             for frame in f_cat_ins:
-                writer.append_data(frame)
+
+                # Get current dimensions
+                h, w, c = frame.shape
+                
+                # Calculate new dimensions
+                new_h, new_w = int(h * scale_factor), int(w * scale_factor)
+                
+                # Resize the frame
+                resized_frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+            
+
+                # writer.append_data(frame)
+                writer.append_data(resized_frame)
             writer.close()
         
         labels = []
